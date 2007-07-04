@@ -10,15 +10,15 @@ envelopes, postcards and more, with or without prepaid US postage indicia
 In addition to providing a layer of syntax sugar for the DAZzle XML interface,
 PyDicia provides a novel adaptive interface that lets you smoothly integrate
 its functions with your application's core types (like invoice, customer, or
-packing ticket objects) without subclassing.  (This is particularly useful if
+"packing slip" objects) without subclassing.  (This is particularly useful if
 you are extending a CRM or other database that was written by somebody else.)
 
 PyDicia uses the ElementTree, simplegeneric, and DecoratorTools packages, and
-requires Python 2.4 or higher.
+requires Python 2.4 or higher (due to use of decorators and the ``Decimal``
+type).
+
 
 TODO:
-
-* ``~`` operator for DocInfo, make DocInfo public
 
 * global defaults
 
@@ -34,6 +34,35 @@ Developer's Guide
 Basic Use
 =========
 
+    >>> from pydicia import * 
+    >>> s = Shipment()
+    >>> s.batches
+    []
+
+    >>> s.ship(ToName('Phillip Eby'), Test)
+    >>> len(s.batches)
+    1
+    >>> s.batches[0].packages
+    [(DocInfo('ToName', 'Phillip Eby', None), DocInfo('DAZzle', 'YES', 'Test'))]
+
+    >>> print s.batches[0].tostring()
+    <DAZzle Test="YES"><Package ID="1"><ToName>Phillip
+    Eby</ToName></Package></DAZzle>
+    
+    >>> s.ship(ToName('Ty Sarna'))
+    >>> len(s.batches)
+    1
+    >>> print s.batches[0].tostring()
+    <DAZzle Test="YES"><Package ID="1"><ToName>Phillip
+    Eby</ToName></Package><Package ID="2"><ToName>Ty
+    Sarna</ToName></Package></DAZzle>
+
+    >>> s.ship(ToName('PJE'), ~Test)
+    >>> len(s.batches)
+    2
+    >>> print s.batches[1].tostring()
+    <DAZzle Test="NO"><Package ID="1"><ToName>PJE</ToName></Package></DAZzle>
+    
 
 
 Application Integration
@@ -57,15 +86,24 @@ Basic Package Options
 
 MailClass(text), NoPostage
 
-DateAdvance
-WeightOz
+DateAdvance, Today, Tomorrow
+WeightOz(), Width(), Length(), Depth()
 Value
 Description
 
 Addresses
 =========
 
-ToName(text), ToTitle(text), ToCompany(text)
+    >>> ToName("Phillip J. Eby")
+    DocInfo('ToName', 'Phillip J. Eby', None)
+
+    >>> ToTitle("President")
+    DocInfo('ToTitle', 'President', None)
+
+    >>> ToCompany("Dirt Simple, Inc.")
+    DocInfo('ToCompany', 'Dirt Simple, Inc.', None)
+
+    
 ToAddress(*lines)
 ToCity(text), ToState(text), ToPostalCode(text), ToZIP4(text), ToCountry(text)
 
@@ -80,21 +118,34 @@ ToReturnCode(text)
 Service Options
 ===============
 
-DomesticFlatRateEnvelope
-DomesticFlatRateBox
+FlatRateEnvelope
+FlatRateBox
+RectangularParcel
+NonRectangularParcel
+Postcard
+Flat
+Envelope
+
+NonMachinable
+BalloonRate
 
 ReplyPostage
 Stealth
-Oversize
+
 SignatureWaiver
 NoWeekendDelivery
 NoHolidayDelivery
 ReturnToSender
 
 RegisteredMail
+
 Insurance.USPS
 Insurance.Endicia
 Insurance.UPIC
+Insurance.NONE
+
+Domestic.
+
 CertifiedMail
 RestrictedDelivery
 CertificateOfMailing
@@ -121,6 +172,8 @@ Customs(formtype, ctype, *items)
 
 Item(desc, weight, value, qty=1, origin='United States')
 
+CustomsSigner(text)
+CustomsCertify
 
 
 Processing Options
@@ -150,69 +203,123 @@ CostCenter(int)
 Internals and Tests
 -------------------
 
-DocInfo applications::
+    >>> from pydicia import add_to_package, ET, DocInfo, Batch, Package
 
-    >>> from pydicia import docinfo_to_etree, ET, _DocInfo, make_tree
+Packages::
 
-    >>> root = ET.Element('DAZzle')
-    >>> pkg = ET.SubElement(root, 'Package', ID='1')
+    >>> b = Batch()
+    >>> p = Package(b)
 
-    >>> print ET.tostring(root)
+    >>> print b.tostring()
     <DAZzle><Package ID="1" /></DAZzle>
     
-    >>> Box = _DocInfo('FlatRate', 'BOX')
-    >>> docinfo_to_etree(Box, root, False)
+    >>> Box = DocInfo('FlatRate', 'BOX')
+    >>> add_to_package(Box, p, False)
 
-    >>> print ET.tostring(root)
+    >>> print b.tostring()
     <DAZzle><Package ID="1"><FlatRate>BOX</FlatRate></Package></DAZzle>
 
-    >>> Envelope = _DocInfo('FlatRate', 'TRUE')
-    >>> docinfo_to_etree(Envelope, root, False)
+    >>> Envelope = DocInfo('FlatRate', 'TRUE')
+    >>> add_to_package(Envelope, p, False)
     Traceback (most recent call last):
       ...
-    DocinfoConflict: Can't set 'FlatRate=TRUE' when 'FlatRate=BOX' already set
+    DocInfoConflict: Can't set 'FlatRate=TRUE' when 'FlatRate=BOX' already set
 
-    >>> print ET.tostring(root)
+    >>> print b.tostring()
     <DAZzle><Package ID="1"><FlatRate>BOX</FlatRate></Package></DAZzle>
 
-    >>> docinfo_to_etree(Box, root, False)
-    >>> print ET.tostring(root)
+    >>> add_to_package(Box, p, False)
+    >>> print b.tostring()
     <DAZzle><Package ID="1"><FlatRate>BOX</FlatRate></Package></DAZzle>
 
-    >>> docinfo_to_etree(Envelope, root, True)
-    >>> print ET.tostring(root)
+    >>> add_to_package(Envelope, p, True)
+    >>> print b.tostring()
     <DAZzle><Package ID="1"><FlatRate>BOX</FlatRate></Package></DAZzle>
     
-    >>> del pkg[-1]
-    >>> print ET.tostring(root)
+    >>> del p.element[-1]
+    >>> print b.tostring()
     <DAZzle><Package ID="1" /></DAZzle>
 
-    >>> verify_zip = _DocInfo('DAZzle', 'DAZ', 'Start')
+    >>> verify_zip = DocInfo('DAZzle', 'DAZ', 'Start')
 
-    >>> docinfo_to_etree(verify_zip, root, False)
-    >>> print ET.tostring(root)
+    >>> add_to_package(verify_zip, p, False)
+    >>> print b.tostring()
     <DAZzle Start="DAZ"><Package ID="1" /></DAZzle>
 
-    >>> docinfo_to_etree(_DocInfo('DAZzle', 'PRINTING', 'Start'), root, False)
+    >>> add_to_package(DocInfo('DAZzle', 'PRINTING', 'Start'), p, False)
     Traceback (most recent call last):
       ...
-    DocinfoConflict: Can't set 'DAZzle.Start=PRINTING' when 'DAZzle.Start=DAZ' already set
+    DocInfoConflict: Can't set 'DAZzle.Start=PRINTING' when 'DAZzle.Start=DAZ' already set
 
     >>> root = ET.Element('DAZzle')
     >>> pkg = ET.SubElement(root, 'Package', ID='1')
     >>> print ET.tostring(root)
     <DAZzle><Package ID="1" /></DAZzle>
 
-    >>> docinfo_to_etree([verify_zip, Envelope], root, False)
-    >>> print ET.tostring(root)
+    >>> b = Batch()
+    >>> p = Package(b)
+    >>> add_to_package([verify_zip, Envelope], p, False)
+    >>> print b.tostring()
     <DAZzle Start="DAZ"><Package ID="1"><FlatRate>TRUE</FlatRate></Package></DAZzle>
 
+    >>> p.should_queue(COD)
+    True
+    >>> print b.tostring()
+    <DAZzle Start="DAZ"><Package ID="1"><FlatRate>TRUE</FlatRate></Package></DAZzle>
+    >>> p.finish()
+    >>> print b.tostring()
+    <DAZzle Start="DAZ"><Package ID="1"><FlatRate>TRUE</FlatRate><Services
+            COD="ON" /></Package></DAZzle>
+    >>> p.should_queue(COD)
+    False
 
-    >>> root = make_tree([(Box,), (Envelope,)], verify_zip)
-    >>> print ET.tostring(root) # doctest: +NORMALIZE_WHITESPACE
+
+Batch rollback::
+
+    >>> b = Batch()
+    >>> print b.tostring()
+    <DAZzle />
+
+    >>> b.ship(FlatRateEnvelope, FlatRateBox)
+    Traceback (most recent call last):
+      ...
+    DocInfoConflict: Can't set 'PackageType=FLATRATEBOX' when
+                               'PackageType=FLATRATEENVELOPE' already set
+
+    >>> print b.tostring()  # rollback on error
+    <DAZzle />
+
+
+Misc shipment::
+
+    >>> s = Shipment(verify_zip)
+    >>> s.ship(Box)
+    >>> s.ship(Envelope)
+    >>> root, = s.batches
+    >>> print root.tostring()
     <DAZzle Start="DAZ"><Package
     ID="1"><FlatRate>BOX</FlatRate></Package><Package
     ID="2"><FlatRate>TRUE</FlatRate></Package></DAZzle>
+
+
+DocInfo inversion::
+
+    >>> ~Envelope
+    DocInfo('FlatRate', 'FALSE', None)
+    >>> ~~Envelope
+    DocInfo('FlatRate', 'TRUE', None)
+
+    >>> ~DocInfo('Services', 'ON', 'RegisteredMail')
+    DocInfo('Services', 'OFF', 'RegisteredMail')
+    >>> ~~DocInfo('Services', 'ON', 'RegisteredMail')
+    DocInfo('Services', 'ON', 'RegisteredMail')
+
+    >>> ~DocInfo('DAZzle', 'YES', 'Prompt')
+    DocInfo('DAZzle', 'NO', 'Prompt')
+    >>> ~~DocInfo('DAZzle', 'YES', 'Prompt')
+    DocInfo('DAZzle', 'YES', 'Prompt')
+    
+
 
 
 The ``iter_docinfo()`` generic function yields "docinfo" objects for an
@@ -233,6 +340,5 @@ And for lists and tuples, the default is to yield their contents::
     >>> list(iter_docinfo(['a', 'b']))
     ['a', 'b']
 
-This routine is used internally by ``docinfo_to_etree()``.
-
+This routine is used internally by ``add_to_package()``.
 
