@@ -1,4 +1,4 @@
-import os
+import os, _winreg
 from decimal import Decimal
 from simplegeneric import generic
 from peak.util.decorators import struct
@@ -189,18 +189,18 @@ def add_to_package(ob, package, isdefault):
     for ob in iter_options(ob):
         add_to_package(ob, package, isdefault)
 
-
-
-
-
-
-
-
-
-
-
-
-
+def _get_registry_string(root, path, subkey=None):
+    """Return the registry value or ``None`` if not found"""
+    try:
+        key = _winreg.OpenKey(root, path)
+        try:           
+            return _winreg.QueryValueEx(key, subkey)[0]
+        finally:
+            _winreg.CloseKey(key)
+    except WindowsError, e:
+        if e.errno == 2:     
+            return None     # entry not found
+        raise
 
 
 inverses = dict(
@@ -336,6 +336,7 @@ class DAZzle:
     def Layout(filename):
         """Return an option specifying the desired layout"""
         return Option('DAZzle', os.path.abspath(filename), 'Layout')
+
     @staticmethod   
     def OutputFile(filename):
         """Return an option specifying the desired layout"""
@@ -344,6 +345,27 @@ class DAZzle:
     Start  = Option('DAZzle', attr='Start').clone
     Print  = Start('PRINTING')
     Verify = Start('DAZ')
+
+    exe_path = _get_registry_string(
+        _winreg.HKEY_CLASSES_ROOT, 'lytfile\\shell\\open\\command'
+    )    
+    
+    #@staticmethod   
+    def get_preference(prefname):
+        import _winreg
+        return _get_registry_string(
+            _winreg.HKEY_CURRENT_USER,
+            'Software\\Envelope Manager\\dazzle\\Preferences', prefname
+        )    
+
+    XMLDirectory = get_preference('XMLDirectory')
+    LayoutDirectory = get_preference('LayoutDirectory')
+    
+    get_preference = staticmethod(get_preference)
+
+
+
+
 
 class Domestic:
     FirstClass = MailClass('FIRST')
@@ -364,9 +386,6 @@ class International:
     GXGNoDoc   = MailClass('INTLGXGNODOC')
 
 
-
-
-
 def DateAdvance(days):
     """Return an option for the number of days ahead of time we're mailing"""
     if not isinstance(days, int) or not (0<=days<=30):
@@ -375,6 +394,18 @@ def DateAdvance(days):
 
 Today = DateAdvance(0)
 Tomorrow = DateAdvance(1)
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 class Customs:
