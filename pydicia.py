@@ -1,4 +1,4 @@
-import os, _winreg
+import os, _winreg, datetime
 from decimal import Decimal
 from simplegeneric import generic
 from peak.util.decorators import struct
@@ -12,7 +12,8 @@ except ImportError:
         import elementtree.ElementTree as ET
 
 __all__ = [
-    'Option', 'OptionConflict', 'Shipment', 'Batch', 'iter_options',
+    'Option', 'OptionConflict', 'Shipment', 'Batch', 'Status',
+    'add_to_package', 'iter_options', 'report_status',
     'DAZzle', 'Services', 'Domestic', 'International', 'Customs',
     'Insurance', 'DateAdvance', 'Today', 'Tomorrow',
     'WeekendDelivery', 'HolidayDelivery', 'NoPostage',
@@ -38,17 +39,18 @@ def options_for_iterable(ob):
 
 
 
-
 class Package:
     """The XML for a single package/label"""
     finished = False
     total_items = total_weight = total_value = 0
 
-    def __init__(self, batch):
+    def __init__(self, batch, *data):
         parent = batch.etree
         self.element = nested_element(parent, 'Package', ID=str(len(parent)+1))
         self.parent = parent
         self.queue = []
+        self.data = data
+        if data: add_to_package(data, self, False)
 
     def __getitem__(self, (tag, attr)):
         if tag=='DAZzle':
@@ -78,8 +80,6 @@ class Package:
         self.queue.append(data)
         return True
 
-
-
     def add_customs_item(self, item):
         self.total_items += 1
         self.total_value += item.value * item.qty
@@ -94,7 +94,7 @@ class Package:
                 CustomsCountry = item.origin
             ), self, False
         )
-            
+
     def finish(self):
         self.finished = True
 
@@ -121,8 +121,51 @@ class Package:
                 )
 
 
+    def __repr__(self):
+        return "Package"+repr(self.data)
+
+
+@generic
+def report_status(ob, status):
+    """Report `status` to `ob`"""
+    try:
+        i = iter_options(ob)
+    except NotImplementedError:
+        pass
+    else:
+        for ob in i:
+            report_status(ob, status)
+
+
+def convert_datetime(t):
+    ymd, hms = t[:8], t[8:]
+    y, m, d = int(ymd[:4]), int(ymd[4:6]), int(ymd[6:])
+    if hms:
+        return datetime.datetime(y,m,d,int(hms[:2]),int(hms[2:4]),int(hms[4:]))
+    return datetime.date(y,m,d)
+
+
+def _get_registry_string(root, path, subkey=None):
+    """Return the registry value or ``None`` if not found"""
+    try:
+        key = _winreg.OpenKey(root, path)
+        try:
+            return _winreg.QueryValueEx(key, subkey)[0]
+        finally:
+            _winreg.CloseKey(key)
+    except WindowsError, e:
+        if e.errno == 2:
+            return None     # entry not found
+        raise
+
+l1_enc = "<?xml version='1.0' encoding='iso-8859-1'?>\n"
+
+
+
 class Batch:
     """An XML document and its corresponding package objects"""
+
+    filename = None
 
     def __init__(self, *rules):
         self.etree = ET.Element('DAZzle')
@@ -136,16 +179,111 @@ class Batch:
         """Add `package` to batch, with error recovery"""
         etree = self.etree
         before = etree.attrib.copy(), etree.text
-        self.packages.append(packageinfo)
-        package = Package(self)
         try:
-            add_to_package((packageinfo, self.rules), package, False)
+            package = Package(self, *packageinfo)
+            add_to_package(self.rules, package, False)
             package.finish()
+            self.packages.append(package)
         except:
-            del etree[-1], self.packages[-1]
+            del etree[-1]
             if etree: etree[-1].tail = etree.text[:-4]
             etree.attrib, etree.text = before
             raise
+
+    def write(self, tmpdir=None, encoding='latin1'):
+        if self.filename is None:
+            import tempfile
+            outf, fname = tempfile.mkstemp('.xml.tmp', dir=tmpdir)
+            self.filename = fname[:-4]
+            self._set_output_file()
+            os.write(outf, self.tostring(encoding))
+            os.close(outf);
+        else:
+            self._set_output_file()
+            open(self.filename+'.tmp', 'wt').write(self.tostring(encoding))
+        os.rename(self.filename+'.tmp', self.filename)
+
+    def _set_output_file(self):
+        self.etree.attrib.setdefault('OutputFile', self.filename+'.output')
+
+    def run(self):
+        """Process batch synchronously, w/status retrieval and returncode"""
+        self.write()
+        result = DAZzle.run([self.filename])
+        self.check_output()
+        self.cleanup_files()
+        return result
+
+    def check_output(self):
+        outputfile = self.etree.attrib.get('OutputFile')
+        if outputfile and os.path.isfile(outputfile):
+            txt = open(outputfile,'r').read()
+            if not txt.startswith('<?'): txt = l1_enc+txt
+            self.etree = ET.fromstring(txt)
+            self.report_statuses()
+
+    def cleanup_files(self):
+        if self.filename:
+            backupname = os.path.splitext(self.filename)[0] + '.BAK'
+        else:
+            backupname = None
+
+        for fname in [
+            self.etree.attrib.get('OutputFile'), self.filename, backupname
+        ]:
+            if fname:
+                try:
+                    os.unlink(fname)
+                except os.error:
+                    pass
+
+    def report_statuses(self):
+        for pkg in self.etree:
+            if pkg.tag=='Package':
+                package = self.packages[int(pkg.attrib['ID'])-1]
+                package.element = pkg
+                report_status(package.data, Status(package))
+
+address_fields = (
+    "ToAddress1 ToAddress2 ToAddress3 ToAddress4 ToAddress5 ToAddress6"
+).split()
+
+
+class Status(object):
+    """A status object"""
+
+    __slots__ = """
+        Status ErrorCode ToAddress ToCity ToState ToPostalCode ToZIP4 ToCountry
+        ToDeliveryPoint ToCarrierRoute ToReturnCode PIC CustomsNumber
+        FinalPostage TransactionID TransactionDateTime PostmarkDate
+    """.split() + address_fields
+
+    def __init__(self, package):
+        for k in self.__slots__:
+            setattr(self, k, package[k, None])
+        self.ToAddress = filter(None,map(self.__getattribute__,address_fields))
+        if self.Status and self.Status.startswith('Rejected ('):
+            if self.Status.endswith(')'):
+                self.ErrorCode = int(self.Status[10:-1])
+
+        if self.FinalPostage is not None:
+            self.FinalPostage = Decimal(self.FinalPostage)
+
+        if self.PostmarkDate is not None:
+            self.PostmarkDate = convert_datetime(self.PostmarkDate)
+
+        if self.TransactionDateTime is not None:
+            self.TransactionDateTime = convert_datetime(self.TransactionDateTime)
+    def __str__(self):
+        return '\n'.join([
+            '%-20s: %r' % (k,getattr(self,k))
+                for k in self.__slots__ if getattr(self,k) is not None
+        ])
+
+
+
+
+
 
 def nested_element(parent, tag, indent=1, **kw):
     """Like ET.SubElement, but with pretty-printing indentation"""
@@ -155,11 +293,6 @@ def nested_element(parent, tag, indent=1, **kw):
     if len(parent)>1:
         parent[-2].tail = parent.text
     return element
-
-
-
-
-
 
 
 class Shipment:
@@ -174,7 +307,7 @@ class Shipment:
             try:
                 return batch.add_package(*packageinfo)
             except OptionConflict:
-                pass                
+                pass
 
         batch = Batch(*self.rules)
         batch.add_package(*packageinfo)
@@ -189,18 +322,8 @@ def add_to_package(ob, package, isdefault):
     for ob in iter_options(ob):
         add_to_package(ob, package, isdefault)
 
-def _get_registry_string(root, path, subkey=None):
-    """Return the registry value or ``None`` if not found"""
-    try:
-        key = _winreg.OpenKey(root, path)
-        try:           
-            return _winreg.QueryValueEx(key, subkey)[0]
-        finally:
-            _winreg.CloseKey(key)
-    except WindowsError, e:
-        if e.errno == 2:     
-            return None     # entry not found
-        raise
+
+
 
 
 inverses = dict(
@@ -335,9 +458,11 @@ class DAZzle:
     @staticmethod
     def Layout(filename):
         """Return an option specifying the desired layout"""
+        if DAZzle.LayoutDirectory:
+            filename = os.path.join(DAZzle.LayoutDirectory, filename)
         return Option('DAZzle', os.path.abspath(filename), 'Layout')
 
-    @staticmethod   
+    @staticmethod
     def OutputFile(filename):
         """Return an option specifying the desired layout"""
         return Option('DAZzle', os.path.abspath(filename), 'OutputFile')
@@ -348,23 +473,33 @@ class DAZzle:
 
     exe_path = _get_registry_string(
         _winreg.HKEY_CLASSES_ROOT, 'lytfile\\shell\\open\\command'
-    )    
-    
-    #@staticmethod   
+    )
+
+    #@staticmethod
     def get_preference(prefname):
         import _winreg
         return _get_registry_string(
             _winreg.HKEY_CURRENT_USER,
             'Software\\Envelope Manager\\dazzle\\Preferences', prefname
-        )    
+        )
 
     XMLDirectory = get_preference('XMLDirectory')
     LayoutDirectory = get_preference('LayoutDirectory')
-    
+
     get_preference = staticmethod(get_preference)
 
 
 
+    @staticmethod
+    def run(args=(), sync=True):
+        """Start DAZzle with arguments, returning a process or return code"""
+        from subprocess import Popen
+        process = Popen(
+            [DAZzle.exe_path]+list(args), executable=DAZzle.exe_path
+        )
+        if sync:
+            return process.wait()
+        return process
 
 
 class Domestic:
@@ -396,18 +531,6 @@ Today = DateAdvance(0)
 Tomorrow = DateAdvance(1)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 class Customs:
     _make_symbols(
         locals(), 'value', "NONE GEM CN22 CP72".split(), CustomsFormType
@@ -428,11 +551,21 @@ class Customs:
         assert value==Decimal(value)
         assert qty==int(qty)
         return desc, Decimal(weight), Decimal(value), int(qty), origin
-    
+
     @add_to_package.when_type(Item)
     def _add_item(ob, package, isdefault):
         assert not isdefault, "Customs.Item objects can't be defaults"
         package.add_customs_item(ob)
+
+
+
+
+
+
+
+
+
+
 
 
 
