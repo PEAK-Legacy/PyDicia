@@ -10,33 +10,33 @@ except ImportError:
         import elementtree.ElementTree as ET
 
 __all__ = [
-    'DocInfo', 'DocInfoConflict', 'Layout', 'OutputFile', 'Insurance',
+    'Option', 'OptionConflict', 'Layout', 'OutputFile', 'Insurance',
     'DateAdvance', 'Today', 'Tomorrow',  'WeekendDelivery', 'HolidayDelivery',
     'NoPostage', 'Domestic', 'International', 'Shipment', 'Postcard',
     'Envelope', 'Flat', 'RectangularParcel', 'NonRectangularParcel',
     'FlatRateEnvelope', 'FlatRateBox', 'ToAddress', 'ReturnAddress',
-    'RubberStamp', 'Print', 'Verify', 'Batch', 'iter_docinfo',
+    'RubberStamp', 'Print', 'Verify', 'Batch', 'iter_options',
     # ...and many more symbols added dynamically!
 ]
 
-class DocInfoConflict(ValueError):
+class OptionConflict(ValueError):
     """Attempt to set conflicting options"""
 
 @generic
-def iter_docinfo(ob):
+def iter_options(ob):
     """Yield object(s) providing shipping document info for `ob`"""
-    raise NotImplementedError("No docinfo producer registered for", type(ob))
+    raise NotImplementedError("No option producer registered for", type(ob))
 
-@iter_docinfo.when_type(list)
-@iter_docinfo.when_type(tuple)
-def docinfo_iterable(ob):
+@iter_options.when_type(list)
+@iter_options.when_type(tuple)
+def options_for_iterable(ob):
     for ob in ob:
         yield ob
 
 @generic
 def add_to_package(ob, package, isdefault):
     """Update `etree` to apply document info"""
-    for ob in iter_docinfo(ob):
+    for ob in iter_options(ob):
         add_to_package(ob, package, isdefault)
 
 class Package:
@@ -132,7 +132,7 @@ class Shipment:
         for batch in self.batches:
             try:
                 return batch.add_package(*packageinfo)
-            except DocInfoConflict:
+            except OptionConflict:
                 pass                
 
         batch = Batch(*self.rules)
@@ -166,17 +166,17 @@ inverses = dict(
     TRUE='FALSE', FALSE='TRUE', YES='NO', NO='YES', ON='OFF', OFF='ON'
 )
 
-class DocInfoBase(object):
+class OptionBase(object):
     __slots__ = ()
 
     def __invert__(self):
         try:
-            return DocInfo(self.tag, inverses[self.value], self.attr)
+            return Option(self.tag, inverses[self.value], self.attr)
         except KeyError:
             raise ValueError("%r has no inverse" % (self,))
 
     def clone(self, value):
-        return DocInfo(self.tag, value, self.attr)
+        return Option(self.tag, value, self.attr)
 
     def set(self, package, isdefault=False):
         old = package[self.tag, self.attr]
@@ -184,7 +184,7 @@ class DocInfoBase(object):
             if isdefault:
                 return
             name = self.tag+(self.attr and '.'+self.attr or '')
-            raise DocInfoConflict(
+            raise OptionConflict(
                 "Can't set '%s=%s' when '%s=%s' already set" % (
                     name, self.value, name, old
                 )
@@ -193,21 +193,20 @@ class DocInfoBase(object):
             package[self.tag, self.attr] = self.value
 
 
-@struct(DocInfoBase)
-def DocInfo(tag, value=None, attr=None):
+@struct(OptionBase)
+def Option(tag, value=None, attr=None):
     """Object representing DAZzle XML text or attributes"""
     return tag, value, attr
 
-add_to_package.when_type(DocInfo)(DocInfo.set)
+add_to_package.when_type(Option)(Option.set)
 
 
 
 
-def _make_symbols(d, nattr, names, factory=DocInfo, **kw):
+def _make_symbols(d, nattr, names, factory=Option, **kw):
     for name in names:
         kw[nattr] = name
         d[name] = factory(**kw)
-        __all__.append(name)
 
 def _make_globals(nattr, names, *args, **kw):
     _make_symbols(globals(), nattr, names, *args, **kw)
@@ -244,84 +243,126 @@ HolidayDelivery = ~NoHolidayDelivery
 
 
 
+
 _make_globals(
     'tag', """
     ToName ToTitle ToCompany ToCity ToState ToPostalCode ToZIP4 ToCountry
     ToCarrierRoute ToReturnCode ToEmail ToPhone EndorsementLine ReferenceID
-    ToDeliveryPoint CustomsSigner Description MailClass
+    ToDeliveryPoint Description MailClass PackageType
+    ContentsType CustomsFormType
 
     WeightOz Width Length Depth CostCenter Value
-    """.split(), lambda tag: DocInfo(tag).clone
+    """.split(), lambda tag: Option(tag).clone
 )
 
 NoPostage = MailClass('NONE')
+InsuredMail = Option('Services', None, 'InsuredMail').clone
 
 def Layout(filename):
-    """Return a docinfo specifying the desired layout"""
-    return DocInfo('DAZzle', os.path.abspath(filename), 'Layout')
+    """Return an option specifying the desired layout"""
+    return Option('DAZzle', os.path.abspath(filename), 'Layout')
 
 def OutputFile(filename):
-    """Return a docinfo specifying the desired layout"""
-    return DocInfo('DAZzle', os.path.abspath(filename), 'OutputFile')
+    """Return an option specifying the desired layout"""
+    return Option('DAZzle', os.path.abspath(filename), 'OutputFile')
 
-
-def Insurance(type):
-    """Return a docinfo for UPIC or ENDICIA insurance"""
-    if type not in ('UPIC', 'ENDICIA'):
-        raise ValueError("Insurance() must be 'UPIC' or 'ENDICIA'")
-    return DocInfo('Services', type, 'InsuredMail')
+class Insurance:
+    UPIC = InsuredMail('UPIC')
+    Endicia = InsuredMail('ENDICIA')
+    USPS = InsuredMail('ON')
+    NONE = ~USPS
 
 def ToAddress(*lines):
     assert len(lines)<=6
-    return [DocInfo('ToAddress'+str(n+1), v) for n, v in enumerate(lines)]
+    return [Option('ToAddress'+str(n+1), v) for n, v in enumerate(lines)]
 
 def ReturnAddress(*lines):
     assert len(lines)<=6
-    return [DocInfo('ReturnAddress'+str(n+1), v) for n, v in enumerate(lines)]
+    return [Option('ReturnAddress'+str(n+1), v) for n, v in enumerate(lines)]
 
 def RubberStamp(n, text):
     assert 1<=n<=50
-    return DocInfo('RubberStamp'+str(n), text)
-
+    return Option('RubberStamp'+str(n), text)
 
 
 class Domestic:
-    FirstClass = DocInfo('MailClass', 'FIRST')
-    Priority   = DocInfo('MailClass', 'PRIORITY')
-    ParcelPost = DocInfo('MailClass', 'PARCELPOST')
-    Media      = DocInfo('MailClass', 'MEDIAMAIL')
-    Library    = DocInfo('MailClass', 'LIBRARY')
-    BPM        = DocInfo('MailClass', 'BOUNDPRINTEDMATTER')
-    Express    = DocInfo('MailClass', 'EXPRESS')
-    PresortedFirstClass = DocInfo('MailClass', 'PRESORTEDFIRST')
-    PresortedStandard   = DocInfo('MailClass', 'PRESORTEDSTANDARD')
+    FirstClass = MailClass('FIRST')
+    Priority   = MailClass('PRIORITY')
+    ParcelPost = MailClass('PARCELPOST')
+    Media      = MailClass('MEDIAMAIL')
+    Library    = MailClass('LIBRARY')
+    BPM        = MailClass('BOUNDPRINTEDMATTER')
+    Express    = MailClass('EXPRESS')
+    PresortedFirstClass = MailClass('PRESORTEDFIRST')
+    PresortedStandard   = MailClass('PRESORTEDSTANDARD')
 
 class International:
-    FirstClass = DocInfo('MailClass', 'INTLFIRST')
-    Priority   = DocInfo('MailClass', 'INTLPRIORITY')
-    Express    = DocInfo('MailClass', 'INTLEXPRESS')
-    GXG        = DocInfo('MailClass', 'INTLGXG')
-    GXGNoDoc   = DocInfo('MailClass', 'INTLGXGNODOC')
+    FirstClass = MailClass('INTLFIRST')
+    Priority   = MailClass('INTLPRIORITY')
+    Express    = MailClass('INTLEXPRESS')
+    GXG        = MailClass('INTLGXG')
+    GXGNoDoc   = MailClass('INTLGXGNODOC')
 
-Postcard             = DocInfo('PackageType', 'POSTCARD')
-Envelope             = DocInfo('PackageType', 'ENVELOPE')
-Flat                 = DocInfo('PackageType', 'FLAT')
-RectangularParcel    = DocInfo('PackageType', 'RECTPARCEL')
-NonRectangularParcel = DocInfo('PackageType', 'NONRECTPARCEL')
-FlatRateEnvelope     = DocInfo('PackageType', 'FLATRATEENVELOPE')
-FlatRateBox          = DocInfo('PackageType', 'FLATRATEBOX')
+Postcard             = PackageType('POSTCARD')
+Envelope             = PackageType('ENVELOPE')
+Flat                 = PackageType('FLAT')
+RectangularParcel    = PackageType('RECTPARCEL')
+NonRectangularParcel = PackageType('NONRECTPARCEL')
+FlatRateEnvelope     = PackageType('FLATRATEENVELOPE')
+FlatRateBox          = PackageType('FLATRATEBOX')
 
 def DateAdvance(days):
-    """Return a docinfo for the number of days ahead of time we're mailing"""
+    """Return an option for the number of days ahead of time we're mailing"""
     if not isinstance(days, int) or not (0<=days<=30):
         raise ValueError("DateAdvance() must be an integer from 0-30")
-    return DocInfo('DateAdvance', str(days))
+    return Option('DateAdvance', str(days))
 
 Today = DateAdvance(0)
 Tomorrow = DateAdvance(1)
 
-Print  = DocInfo('DAZzle', 'PRINTING', 'Start')
-Verify = DocInfo('DAZzle', 'DAZ',      'Start')
+Print  = Option('DAZzle', 'PRINTING', 'Start')
+Verify = Option('DAZzle', 'DAZ',      'Start')
+
+
+
+
+class Customs:
+    _make_symbols(
+        locals(), 'value', "NONE GEM CN22 CP72".split(), CustomsFormType
+    )
+    _make_symbols(
+        locals(), 'value',
+        "Sample Gift Documents Other Merchandise ReturnedGoods".split(),
+        lambda value: ContentsType(value.upper())
+    )
+
+    Signer  = Option('CustomsSigner').clone
+    Certify = Option('CustomsCertify', 'TRUE')
+
+    @struct()
+    def Item(desc, weight, value, qty=1, origin='United States'):
+        from decimal import Decimal
+        assert weight==Decimal(weight)
+        assert value==Decimal(value)
+        assert qty==int(qty)
+        return desc, Decimal(weight), Decimal(value), int(qty), origin
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
