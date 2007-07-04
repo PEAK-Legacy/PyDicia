@@ -1,6 +1,8 @@
 import os
+from decimal import Decimal
 from simplegeneric import generic
 from peak.util.decorators import struct
+
 try:
     import xml.etree.cElementTree as ET
 except ImportError:
@@ -10,12 +12,13 @@ except ImportError:
         import elementtree.ElementTree as ET
 
 __all__ = [
-    'Option', 'OptionConflict', 'Layout', 'OutputFile', 'Insurance',
-    'DateAdvance', 'Today', 'Tomorrow',  'WeekendDelivery', 'HolidayDelivery',
-    'NoPostage', 'Domestic', 'International', 'Shipment', 'Postcard',
-    'Envelope', 'Flat', 'RectangularParcel', 'NonRectangularParcel',
-    'FlatRateEnvelope', 'FlatRateBox', 'ToAddress', 'ReturnAddress',
-    'RubberStamp', 'Print', 'Verify', 'Batch', 'iter_options',
+    'Option', 'OptionConflict', 'Shipment', 'Batch', 'iter_options',
+    'DAZzle', 'Services', 'Domestic', 'International', 'Customs',
+    'Insurance', 'DateAdvance', 'Today', 'Tomorrow',
+    'WeekendDelivery', 'HolidayDelivery', 'NoPostage',
+    'Postcard', 'Envelope', 'Flat', 'RectangularParcel',
+    'NonRectangularParcel', 'FlatRateEnvelope', 'FlatRateBox',
+    'ToAddress', 'ReturnAddress', 'RubberStamp',
     # ...and many more symbols added dynamically!
 ]
 
@@ -33,15 +36,13 @@ def options_for_iterable(ob):
     for ob in ob:
         yield ob
 
-@generic
-def add_to_package(ob, package, isdefault):
-    """Update `etree` to apply document info"""
-    for ob in iter_options(ob):
-        add_to_package(ob, package, isdefault)
+
+
 
 class Package:
     """The XML for a single package/label"""
     finished = False
+    total_items = total_weight = total_value = 0
 
     def __init__(self, batch):
         parent = batch.etree
@@ -72,13 +73,53 @@ class Package:
             el.text = unicode(value)
 
     def should_queue(self, data):
-        if self.finished: return False
+        if self.finished:
+            return False
         self.queue.append(data)
         return True
 
+
+
+    def add_customs_item(self, item):
+        self.total_items += 1
+        self.total_value += item.value * item.qty
+        self.total_weight += item.weight * item.qty
+        n = str()
+        add_to_package(
+            NumberedOptions(self.total_items,
+                CustomsWeight = item.weight * item.qty,
+                CustomsDescription = item.desc,
+                CustomsQuantity = item.qty,
+                CustomsValue = item.value * item.qty,
+                CustomsCountry = item.origin
+            ), self, False
+        )
+            
     def finish(self):
         self.finished = True
-        for item in self.queue: add_to_package(item, self, False)
+
+        for item in self.queue:
+            add_to_package(item, self, False)
+
+        if self.total_items:
+            add_to_package(Value(self.total_value), self, False)
+            from decimal import Decimal
+            if self['WeightOz', None] is None:
+                raise OptionConflict(
+                    "Total package weight must be specified when"
+                    " Customs.Items are used"
+                )
+            oz = Decimal(self['WeightOz', None])
+            if oz < self.total_weight:
+                raise OptionConflict(
+                    "Total item weight is %s oz, but total package weight is"
+                    " only %s oz" % (self.total_weight, oz)
+                )
+            if not self['CustomsFormType',None]or not self['ContentsType',None]:
+                raise OptionConflict(
+                    "Customs form + content type must be specified with items"
+                )
+
 
 class Batch:
     """An XML document and its corresponding package objects"""
@@ -142,11 +183,11 @@ class Shipment:
         self.batches.append(batch)
 
 
-
-
-
-
-
+@generic
+def add_to_package(ob, package, isdefault):
+    """Update `etree` to apply document info"""
+    for ob in iter_options(ob):
+        add_to_package(ob, package, isdefault)
 
 
 
@@ -177,7 +218,7 @@ class OptionBase(object):
 
     def clone(self, value):
         return Option(self.tag, value, self.attr)
-
+    __call__ = clone
     def set(self, package, isdefault=False):
         old = package[self.tag, self.attr]
         if old is not None and old<>unicode(self.value):
@@ -192,16 +233,18 @@ class OptionBase(object):
         if self.value is not None:
             package[self.tag, self.attr] = self.value
 
+    def __repr__(self):
+        if self.attr:
+            return "%s.%s(%r)" % (self.tag, self.attr, self.value)
+        return "%s(%r)" % (self.tag, self.value)
 
-@struct(OptionBase)
+@struct(OptionBase, __repr__ = OptionBase.__repr__.im_func)
 def Option(tag, value=None, attr=None):
     """Object representing DAZzle XML text or attributes"""
     return tag, value, attr
 
+
 add_to_package.when_type(Option)(Option.set)
-
-
-
 
 def _make_symbols(d, nattr, names, factory=Option, **kw):
     for name in names:
@@ -213,77 +256,94 @@ def _make_globals(nattr, names, *args, **kw):
     __all__.extend(names)
 
 _make_globals(
-    'attr', """
-    Prompt AbortOnError Test SkipUnverified AutoClose AutoPrintCustomsForms
-    """.split(), tag='DAZzle', value='YES'
-)
-_make_globals(
-    'attr', """
-    RegisteredMail InsuredMail CertifiedMail RestrictedDelivery ReturnReceipt
-    CertificateOfMailing DeliveryConfirmation SignatureConfirmation COD
-    """.split(), tag='Services', value='ON'
-)
-_make_globals(
     'tag', """
     ReplyPostage BalloonRate NonMachinable OversizeRate Stealth SignatureWaiver
     NoWeekendDelivery NoHolidayDelivery ReturnToSender CustomsCertify
     """.split(), value='TRUE'
 )
 
-WeekendDelivery = ~NoWeekendDelivery
-HolidayDelivery = ~NoHolidayDelivery
-
-
-
-
-
-
-
-
-
-
-
-
 _make_globals(
     'tag', """
     ToName ToTitle ToCompany ToCity ToState ToPostalCode ToZIP4 ToCountry
     ToCarrierRoute ToReturnCode ToEmail ToPhone EndorsementLine ReferenceID
     ToDeliveryPoint Description MailClass PackageType
-    ContentsType CustomsFormType
+    ContentsType CustomsFormType CustomsSigner
 
     WeightOz Width Length Depth CostCenter Value
     """.split(), lambda tag: Option(tag).clone
 )
 
 NoPostage = MailClass('NONE')
-InsuredMail = Option('Services', None, 'InsuredMail').clone
+WeekendDelivery = ~NoWeekendDelivery
+HolidayDelivery = ~NoHolidayDelivery
 
-def Layout(filename):
-    """Return an option specifying the desired layout"""
-    return Option('DAZzle', os.path.abspath(filename), 'Layout')
+def NumberedOptions(n, **kw):
+    n = str(n)
+    return [Option(k+n, v)for k, v in kw.items()]
 
-def OutputFile(filename):
-    """Return an option specifying the desired layout"""
-    return Option('DAZzle', os.path.abspath(filename), 'OutputFile')
+
+
+
+
+class Services:
+    _make_symbols(
+        locals(), 'attr', """
+        RegisteredMail InsuredMail CertifiedMail RestrictedDelivery ReturnReceipt
+        CertificateOfMailing DeliveryConfirmation SignatureConfirmation COD
+        """.split(), tag='Services', value='ON'
+    )
 
 class Insurance:
-    UPIC = InsuredMail('UPIC')
-    Endicia = InsuredMail('ENDICIA')
-    USPS = InsuredMail('ON')
+    UPIC = Services.InsuredMail('UPIC')
+    Endicia = Services.InsuredMail('ENDICIA')
+    USPS = Services.InsuredMail
     NONE = ~USPS
 
 def ToAddress(*lines):
     assert len(lines)<=6
-    return [Option('ToAddress'+str(n+1), v) for n, v in enumerate(lines)]
+    return [NumberedOptions(n+1, ToAddress=v)[0] for n, v in enumerate(lines)]
 
 def ReturnAddress(*lines):
     assert len(lines)<=6
-    return [Option('ReturnAddress'+str(n+1), v) for n, v in enumerate(lines)]
+    return [NumberedOptions(n+1, ReturnAddress=v)[0] for n, v in enumerate(lines)]
 
 def RubberStamp(n, text):
     assert 1<=n<=50
     return Option('RubberStamp'+str(n), text)
 
+Postcard             = PackageType('POSTCARD')
+Envelope             = PackageType('ENVELOPE')
+Flat                 = PackageType('FLAT')
+RectangularParcel    = PackageType('RECTPARCEL')
+NonRectangularParcel = PackageType('NONRECTPARCEL')
+FlatRateEnvelope     = PackageType('FLATRATEENVELOPE')
+FlatRateBox          = PackageType('FLATRATEBOX')
+
+
+
+
+
+
+
+
+class DAZzle:
+    _make_symbols(
+        locals(), 'attr', """
+        Prompt AbortOnError Test SkipUnverified AutoClose AutoPrintCustomsForms
+        """.split(), tag='DAZzle', value='YES'
+    )
+    @staticmethod
+    def Layout(filename):
+        """Return an option specifying the desired layout"""
+        return Option('DAZzle', os.path.abspath(filename), 'Layout')
+    @staticmethod   
+    def OutputFile(filename):
+        """Return an option specifying the desired layout"""
+        return Option('DAZzle', os.path.abspath(filename), 'OutputFile')
+
+    Start  = Option('DAZzle', attr='Start').clone
+    Print  = Start('PRINTING')
+    Verify = Start('DAZ')
 
 class Domestic:
     FirstClass = MailClass('FIRST')
@@ -303,27 +363,18 @@ class International:
     GXG        = MailClass('INTLGXG')
     GXGNoDoc   = MailClass('INTLGXGNODOC')
 
-Postcard             = PackageType('POSTCARD')
-Envelope             = PackageType('ENVELOPE')
-Flat                 = PackageType('FLAT')
-RectangularParcel    = PackageType('RECTPARCEL')
-NonRectangularParcel = PackageType('NONRECTPARCEL')
-FlatRateEnvelope     = PackageType('FLATRATEENVELOPE')
-FlatRateBox          = PackageType('FLATRATEBOX')
+
+
+
 
 def DateAdvance(days):
     """Return an option for the number of days ahead of time we're mailing"""
     if not isinstance(days, int) or not (0<=days<=30):
         raise ValueError("DateAdvance() must be an integer from 0-30")
-    return Option('DateAdvance', str(days))
+    return Option('DateAdvance', days)
 
 Today = DateAdvance(0)
 Tomorrow = DateAdvance(1)
-
-Print  = Option('DAZzle', 'PRINTING', 'Start')
-Verify = Option('DAZzle', 'DAZ',      'Start')
-
-
 
 
 class Customs:
@@ -336,8 +387,8 @@ class Customs:
         lambda value: ContentsType(value.upper())
     )
 
-    Signer  = Option('CustomsSigner').clone
-    Certify = Option('CustomsCertify', 'TRUE')
+    Signer  = CustomsSigner
+    Certify = CustomsCertify
 
     @struct()
     def Item(desc, weight, value, qty=1, origin='United States'):
@@ -347,20 +398,10 @@ class Customs:
         assert qty==int(qty)
         return desc, Decimal(weight), Decimal(value), int(qty), origin
     
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    @add_to_package.when_type(Item)
+    def _add_item(ob, package, isdefault):
+        assert not isdefault, "Customs.Item objects can't be defaults"
+        package.add_customs_item(ob)
 
 
 

@@ -87,7 +87,7 @@ The ``add_package()`` method accepts zero or more objects that can manipulate
 PyDicia package objects.  It also accepts tuples or lists of such objects,
 nested to arbitrary depth.
 
-    >>> b.add_package([COD, (Stealth, ToName('Ty Sarna'))], FlatRateBox)
+    >>> b.add_package([Services.COD, (Stealth, ToName('Ty Sarna'))], FlatRateBox)
 
     >>> print b.tostring()
     <DAZzle>
@@ -106,10 +106,9 @@ And the ``packages`` attribute of a batch keeps track of the arguments that
 have been passed to ``add_package()``::
 
     >>> b.packages
-    [(Option('ToName', 'Phillip Eby', None),),
-     ([Option('Services', 'ON', 'COD'), (Option('Stealth', 'TRUE', None),
-       Option('ToName', 'Ty Sarna', None))],
-      Option('PackageType', 'FLATRATEBOX', None))]
+    [(ToName('Phillip Eby'),),
+     ([Services.COD('ON'), (Stealth('TRUE'), ToName('Ty Sarna'))],
+      PackageType('FLATRATEBOX'))]
 
 Each "package" in the list is a tuple of the arguments that were supplied for
 each invocation of ``add_package()``.
@@ -234,7 +233,7 @@ When you create a shipment, it initially has no batches::
 
 But as you add packages to it, it will create batches as needed::
 
-    >>> s.add_package(ToName('Phillip Eby'), Test)
+    >>> s.add_package(ToName('Phillip Eby'), DAZzle.Test)
     >>> len(s.batches)
     1
 
@@ -248,7 +247,7 @@ But as you add packages to it, it will create batches as needed::
 As long as you're adding packages with the same or compatible options, the
 same batch will be reused::
 
-    >>> s.add_package(ToName('Ty Sarna'), Test)
+    >>> s.add_package(ToName('Ty Sarna'), DAZzle.Test)
     >>> len(s.batches)
     1
     >>> print s.batches[0].tostring()
@@ -264,7 +263,7 @@ same batch will be reused::
 But as soon as you add a package with any incompatible options, a new batch
 will be created and used::
 
-    >>> s.add_package(ToName('PJE'), ~Test)
+    >>> s.add_package(ToName('PJE'), ~DAZzle.Test)
     >>> len(s.batches)
     2
 
@@ -277,7 +276,7 @@ will be created and used::
     
 And each time you add a package, it's added to the first compatible batch::
 
-    >>> s.add_package(ToName('Some Body'), ~Test)
+    >>> s.add_package(ToName('Some Body'), ~DAZzle.Test)
     >>> len(s.batches)
     2
 
@@ -291,7 +290,7 @@ And each time you add a package, it's added to the first compatible batch::
         </Package>
     </DAZzle>
 
-    >>> s.add_package(ToName('No Body'), Test)
+    >>> s.add_package(ToName('No Body'), DAZzle.Test)
     >>> len(s.batches)
     2
 
@@ -311,9 +310,9 @@ And each time you add a package, it's added to the first compatible batch::
 By the way, as with batches, you can create a shipment with options that will
 be applied to all packages::
 
-    >>> s = Shipment(Tomorrow, COD)
-    >>> s.add_package(ToName('Some Body'), Test)
-    >>> s.add_package(ToName('No Body'), ~Test)
+    >>> s = Shipment(Tomorrow, Services.COD)
+    >>> s.add_package(ToName('Some Body'), DAZzle.Test)
+    >>> s.add_package(ToName('No Body'), ~DAZzle.Test)
     >>> len(s.batches)
     2
     >>> print s.batches[0].tostring()
@@ -374,13 +373,13 @@ Addresses
 =========
 
     >>> ToName("Phillip J. Eby")
-    Option('ToName', 'Phillip J. Eby', None)
+    ToName('Phillip J. Eby')
 
     >>> ToTitle("President")
-    Option('ToTitle', 'President', None)
+    ToTitle('President')
 
     >>> ToCompany("Dirt Simple, Inc.")
-    Option('ToCompany', 'Dirt Simple, Inc.', None)
+    ToCompany('Dirt Simple, Inc.')
 
     
 ToAddress(*lines)
@@ -428,53 +427,205 @@ Insurance.Endicia
 Insurance.UPIC
 Insurance.NONE
 
-RegisteredMail
-CertifiedMail
-RestrictedDelivery
-CertificateOfMailing
-ReturnReceipt
-DeliveryConfirmation
-SignatureConfirmation
-COD
+Services.RegisteredMail
+Services.CertifiedMail
+Services.RestrictedDelivery
+Services.CertificateOfMailing
+Services.ReturnReceipt
+Services.DeliveryConfirmation
+Services.SignatureConfirmation
+Services.COD
+
+Services.InsuredMail()
 
 
 Customs Forms
 =============
 
-Customs.Sample
-Customs.Gift
-Customs.Documents
-Customs.Other
-Customs.Merchandise
+When processing international shipments, you will usually need to specify a
+customs form, contents type, and items.  Additionally, if you want to print
+the customs forms already "signed", you can specify a signer and the
+certification option.
 
-Customs.GEM
-Customs.CN22
-Customs.CP72
-Customs.NONE
+Contents Types
+--------------
 
-Customs.Item(desc, weight, value, qty=1, origin='United States')
+The ``ContentsType`` constructor defines the type of contents declared on the
+customs form.  There are six predefined constants for the standard contents
+types::
 
-Customs.Signer(text)
-Customs.Certify
+    >>> Customs.Sample
+    ContentsType('SAMPLE')
 
-ContentsType(), CustomsFormType()
+    >>> Customs.Gift
+    ContentsType('GIFT')
+
+    >>> Customs.Documents
+    ContentsType('DOCUMENTS')
+
+    >>> Customs.Other
+    ContentsType('OTHER')
+
+    >>> Customs.Merchandise
+    ContentsType('MERCHANDISE')
+
+    >>> Customs.ReturnedGoods
+    ContentsType('RETURNEDGOODS')
+
+
+Customs Form Types
+------------------
+
+The ``CustomsFormType`` constructor defines the type of customs form to be
+used.  There are four predefined constants for the allowed form types::
+
+    >>> Customs.GEM
+    CustomsFormType('GEM')
+    
+    >>> Customs.CN22
+    CustomsFormType('CN22')
+
+    >>> Customs.CP72
+    CustomsFormType('CP72')
+
+    >>> Customs.NONE
+    CustomsFormType('NONE')
+
+
+Customs Items
+-------------
+
+Items to be declared on a customs form are created using ``Customs.Item``.
+The minimum required arguments are a description, a unit weight in ounces
+(which must be an integer or decimal), and a value in US dollars (also an
+integer or decimal)::
+
+    >>> from decimal import Decimal
+    >>> i = Customs.Item("Paperback book", 12, Decimal('29.95'))
+
+You may also optionally specify a quantity (which must be an integer) and a
+country of origin.  The defaults for these are ``1`` and ``"United States"``,
+respectively::
+
+    >>> i
+    Item('Paperback book', Decimal("12"), Decimal("29.95"), 1, 'United States')
+
+You always specify a unit weight and value; these are automatically multiplied
+by the quantity on the customs form, and for purposes of calculating total
+weight/value.
+
+Note that a package's total weight must be greater than or equal to the sum of
+its items' weight, and its value must exactly equal the sum of its items'
+values::
+
+    >>> b = Batch()
+    >>> b.add_package(i)
+    Traceback (most recent call last):
+      ...
+    OptionConflict: Total package weight must be specified when Customs.Items
+                    are used
+
+    >>> b.add_package(i, WeightOz(1))
+    Traceback (most recent call last):
+      ...
+    OptionConflict: Total item weight is 12 oz, but
+                    total package weight is only 1 oz
+
+    >>> b.add_package(i, WeightOz(12), Value(69))
+    Traceback (most recent call last):
+      ...
+    OptionConflict: Can't set 'Value=29.95' when 'Value=69' already set
+
+And a form type and contents type must be specified if you include any items::
+
+    >>> b.add_package(i, WeightOz(12))
+    Traceback (most recent call last):
+      ...
+    OptionConflict: Customs form + content type must be specified with items
+
+    >>> b.add_package(i, WeightOz(12), Customs.Gift)
+    Traceback (most recent call last):
+      ...
+    OptionConflict: Customs form + content type must be specified with items
+
+    >>> b.add_package(i, WeightOz(12), Customs.CN22)
+    Traceback (most recent call last):
+      ...
+    OptionConflict: Customs form + content type must be specified with items
+
+    >>> b.add_package(i, WeightOz(12), Customs.Gift, Customs.CN22)
+    >>> print b.tostring()
+    <DAZzle>
+        <Package ID="1">
+            <CustomsQuantity1>1</CustomsQuantity1>
+            <CustomsCountry1>United States</CustomsCountry1>
+            <CustomsDescription1>Paperback book</CustomsDescription1>
+            <CustomsWeight1>12</CustomsWeight1>
+            <CustomsValue1>29.95</CustomsValue1>
+            <WeightOz>12</WeightOz>
+            <ContentsType>GIFT</ContentsType>
+            <CustomsFormType>CN22</CustomsFormType>
+            <Value>29.95</Value>
+        </Package>
+    </DAZzle>
+
+The final customs form will include the multiplied-out weights and values based
+on the quantity of each item::
+
+    >>> b = Batch()
+    >>> b.add_package(
+    ...     Customs.Item('x',23,42,3), Customs.Item('y',1,7),
+    ...     WeightOz(99), Customs.Gift, Customs.CN22
+    ... )
+    >>> print b.tostring()
+    <DAZzle>
+        <Package ID="1">
+            <CustomsQuantity1>3</CustomsQuantity1>
+            <CustomsCountry1>United States</CustomsCountry1>
+            <CustomsDescription1>x</CustomsDescription1>
+            <CustomsWeight1>69</CustomsWeight1>
+            <CustomsValue1>126</CustomsValue1>
+            <CustomsQuantity2>1</CustomsQuantity2>
+            <CustomsCountry2>United States</CustomsCountry2>
+            <CustomsDescription2>y</CustomsDescription2>
+            <CustomsWeight2>1</CustomsWeight2>
+            <CustomsValue2>7</CustomsValue2>
+            <WeightOz>99</WeightOz>
+            <ContentsType>GIFT</ContentsType>
+            <CustomsFormType>CN22</CustomsFormType>
+            <Value>133</Value>
+        </Package>
+    </DAZzle>
+
+    
+Customs Signature
+-----------------
+
+You can specify the person who's certifying the customs form using these
+options::
+
+    >>> Customs.Signer("Phillip Eby")
+    CustomsSigner('Phillip Eby')
+    
+    >>> Customs.Certify
+    CustomsCertify('TRUE')
+
 
 
 Processing Options
 ==================
 
-Test
-Layout(filename)
-OutputFile(filename)
+DAZzle.Test
+DAZzle.Layout(filename)
+DAZzle.OutputFile(filename)
+DAZzle.Print
+DAZzle.Verify
 
-Print
-Verify
-
-SkipUnverified
-AutoClose
-Prompt
-AbortOnError
-AutoPrintCustomsForms
+DAZzle.SkipUnverified
+DAZzle.AutoClose
+DAZzle.Prompt
+DAZzle.AbortOnError
+DAZzle.AutoPrintCustomsForms
 
 
 Miscellaneous
@@ -570,7 +721,7 @@ Packages::
         </Package>
     </DAZzle>
 
-    >>> p.should_queue(COD)
+    >>> p.should_queue(Services.COD)
     True
     >>> print b.tostring()
     <DAZzle Start="DAZ">
@@ -588,7 +739,7 @@ Packages::
         </Package>
     </DAZzle>
 
-    >>> p.should_queue(COD)
+    >>> p.should_queue(Services.COD)
     False
 
 
@@ -628,19 +779,19 @@ Misc shipment::
 Option inversion::
 
     >>> ~Envelope
-    Option('FlatRate', 'FALSE', None)
+    FlatRate('FALSE')
     >>> ~~Envelope
-    Option('FlatRate', 'TRUE', None)
+    FlatRate('TRUE')
 
     >>> ~Option('Services', 'ON', 'RegisteredMail')
-    Option('Services', 'OFF', 'RegisteredMail')
+    Services.RegisteredMail('OFF')
     >>> ~~Option('Services', 'ON', 'RegisteredMail')
-    Option('Services', 'ON', 'RegisteredMail')
+    Services.RegisteredMail('ON')
 
     >>> ~Option('DAZzle', 'YES', 'Prompt')
-    Option('DAZzle', 'NO', 'Prompt')
+    DAZzle.Prompt('NO')
     >>> ~~Option('DAZzle', 'YES', 'Prompt')
-    Option('DAZzle', 'YES', 'Prompt')
+    DAZzle.Prompt('YES')
     
 
 The ``iter_options()`` generic function yields "option" objects for an
