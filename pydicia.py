@@ -1,3 +1,4 @@
+import os
 from simplegeneric import generic
 from peak.util.decorators import struct
 try:
@@ -14,7 +15,7 @@ __all__ = [
     'NoPostage', 'Domestic', 'International', 'Shipment', 'Postcard',
     'Envelope', 'Flat', 'RectangularParcel', 'NonRectangularParcel',
     'FlatRateEnvelope', 'FlatRateBox', 'ToAddress', 'ReturnAddress',
-    'RubberStamp', 'Print', 'Verify',
+    'RubberStamp', 'Print', 'Verify', 'Batch', 'iter_docinfo',
     # ...and many more symbols added dynamically!
 ]
 
@@ -38,14 +39,13 @@ def add_to_package(ob, package, isdefault):
     for ob in iter_docinfo(ob):
         add_to_package(ob, package, isdefault)
 
-
 class Package:
     """The XML for a single package/label"""
     finished = False
 
     def __init__(self, batch):
         parent = batch.etree
-        self.element = ET.SubElement(parent, 'Package', ID=str(len(parent)+1))
+        self.element = nested_element(parent, 'Package', ID=str(len(parent)+1))
         self.parent = parent
         self.queue = []
 
@@ -65,7 +65,7 @@ class Package:
         else:
             el = self.element.find(tag)
             if el is None:
-                el = ET.SubElement(self.element, tag)
+                el = nested_element(self.element, tag, 2)
         if attr:
             el.attrib[attr] = unicode(value)
         else:
@@ -91,10 +91,10 @@ class Batch:
     def tostring(self, *args):
         return ET.tostring(self.etree, *args)
 
-    def ship(self, *packageinfo):
+    def add_package(self, *packageinfo):
         """Add `package` to batch, with error recovery"""
         etree = self.etree
-        before = etree.attrib.copy()
+        before = etree.attrib.copy(), etree.text
         self.packages.append(packageinfo)
         package = Package(self)
         try:
@@ -102,18 +102,18 @@ class Batch:
             package.finish()
         except:
             del etree[-1], self.packages[-1]
-            etree.attrib = before
+            if etree: etree[-1].tail = etree.text[:-4]
+            etree.attrib, etree.text = before
             raise
 
-
-
-
-
-
-
-
-
-
+def nested_element(parent, tag, indent=1, **kw):
+    """Like ET.SubElement, but with pretty-printing indentation"""
+    element = ET.SubElement(parent, tag, **kw)
+    parent.text='\n'+'    '*indent
+    element.tail = parent.text[:-4]
+    if len(parent)>1:
+        parent[-2].tail = parent.text
+    return element
 
 
 
@@ -128,15 +128,15 @@ class Shipment:
         self.batches = []
         self.rules = rules
 
-    def ship(self, *packageinfo):
+    def add_package(self, *packageinfo):
         for batch in self.batches:
             try:
-                return batch.ship(*packageinfo)
+                return batch.add_package(*packageinfo)
             except DocInfoConflict:
                 pass                
 
         batch = Batch(*self.rules)
-        batch.ship(*packageinfo)
+        batch.add_package(*packageinfo)
 
         # only add the batch if the above operations were successful...
         self.batches.append(batch)
@@ -233,7 +233,7 @@ _make_globals(
 
 WeekendDelivery = ~NoWeekendDelivery
 HolidayDelivery = ~NoHolidayDelivery
-NoPostage = DocInfo('MailClass', 'NONE')
+
 
 
 
@@ -248,11 +248,13 @@ _make_globals(
     'tag', """
     ToName ToTitle ToCompany ToCity ToState ToPostalCode ToZIP4 ToCountry
     ToCarrierRoute ToReturnCode ToEmail ToPhone EndorsementLine ReferenceID
-    ToDeliveryPoint CustomsSigner Description
+    ToDeliveryPoint CustomsSigner Description MailClass
 
     WeightOz Width Length Depth CostCenter Value
     """.split(), lambda tag: DocInfo(tag).clone
 )
+
+NoPostage = MailClass('NONE')
 
 def Layout(filename):
     """Return a docinfo specifying the desired layout"""
@@ -280,8 +282,6 @@ def ReturnAddress(*lines):
 def RubberStamp(n, text):
     assert 1<=n<=50
     return DocInfo('RubberStamp'+str(n), text)
-
-
 
 
 
