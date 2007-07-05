@@ -13,9 +13,20 @@ its functions with your application's core types (like invoice, customer, or
 "packing slip" objects) without subclassing.  (This is particularly useful if
 you are extending a CRM or other database that was written by somebody else.)
 
+This version of PyDicia is an alpha proof-of-concept release.  It is actually
+usable -- I've already used it to print about a dozen international shipping
+labels to almost as many countries.  However, the API is subject to change,
+the reference documentation is sketchy, and the developer's guide lacks detail
+about some of the more advanced features.  This should improve in future
+releases, but I just want to get this milestone out to start with.  Reading the
+DAZzle XML API specification is a good idea if you want to use this; make sure
+you get the 7.0.x version, as that's required.
+
 PyDicia uses the ElementTree, simplegeneric, and DecoratorTools packages, and
 requires Python 2.4 or higher (due to use of decorators and the ``Decimal``
-type).
+type).  It also requires MS Windows (due to DAZzle only being available on
+that platform).  Actually printing any labels requires that you have an Endicia
+"premium" account.
 
 IMPORTANT
     Please note that PyDicia does not attempt to implement all of the US Postal
@@ -32,10 +43,7 @@ IMPORTANT
     been warned!
 
 
-TODO:
-
-* Launching for multi-batch, remote, queued, and other async processing
-
+.. contents:: **Table of Contents**
 
 
 -----------------
@@ -84,7 +92,7 @@ To add a package to a batch, you use the ``add_package()`` method::
 
 The ``add_package()`` method accepts zero or more objects that can manipulate
 PyDicia package objects.  It also accepts tuples or lists of such objects,
-nested to arbitrary depth.
+nested to arbitrary depth::
 
     >>> b.add_package([Services.COD, (Stealth, ToName('Ty Sarna'))], FlatRateBox)
 
@@ -442,13 +450,17 @@ DAZzle to exit.  If `sync` is a false value, ``run()`` returns a
 (ala ``subprocess.call``).
 
 XXX async batch status retrieval
+
 XXX DAZzle.exe_path, DAZzle.get_preference(), DAZzle.LayoutDirectory
+
+XXX Launching for multi-batch, remote, queued, and other async processing
+
 
 
 Advanced Customization
 ======================
 
-Using Option elements, add_to_package()
+XXX Using Option elements, add_to_package()
 
 
 
@@ -459,8 +471,7 @@ Options Reference
 Basic Package Options
 =====================
 
-MailClass(text), NoPostage
-
+XXX MailClass(text), NoPostage
 DateAdvance(), Today, Tomorrow
 Value()
 Description()
@@ -470,6 +481,7 @@ WeightOz()
 Addresses
 =========
 
+::
     >>> ToName("Phillip J. Eby")
     ToName('Phillip J. Eby')
 
@@ -480,11 +492,10 @@ Addresses
     ToCompany('Dirt Simple, Inc.')
 
 
-ToAddress(*lines)
+XXX ToAddress(\*lines)
 ToCity(text), ToState(text), ToPostalCode(text), ToZIP4(text), ToCountry(text)
 
-ReturnAddress(*lines)
-
+XXX ReturnAddress(\*lines)
 ToDeliveryPoint(text)
 EndorsementLine(text)
 ToCarrierRoute(text)
@@ -493,7 +504,7 @@ ToCarrierRoute(text)
 Package Details
 ===============
 
-PackageType()
+XXX PackageType()
 FlatRateEnvelope
 FlatRateBox
 RectangularParcel
@@ -501,30 +512,24 @@ NonRectangularParcel
 Postcard
 Flat
 Envelope
-
 Width(), Length(), Depth()
-
 NonMachinable
 BalloonRate
-
 
 
 Service Options
 ===============
 
-ReplyPostage
+XXX ReplyPostage
 Stealth
-
 SignatureWaiver
 NoWeekendDelivery
 NoHolidayDelivery
 ReturnToSender
-
 Insurance.USPS
 Insurance.Endicia
 Insurance.UPIC
 Insurance.NONE
-
 Services.RegisteredMail
 Services.CertifiedMail
 Services.RestrictedDelivery
@@ -533,7 +538,6 @@ Services.ReturnReceipt
 Services.DeliveryConfirmation
 Services.SignatureConfirmation
 Services.COD
-
 Services.InsuredMail()
 
 
@@ -713,18 +717,16 @@ options::
 Processing Options
 ==================
 
-DAZzle.Test
+XXX DAZzle.Test
 DAZzle.Layout(filename)
 DAZzle.OutputFile(filename)
 DAZzle.Print
 DAZzle.Verify
-
 DAZzle.SkipUnverified
 DAZzle.AutoClose
 DAZzle.Prompt
 DAZzle.AbortOnError
 DAZzle.AutoPrintCustomsForms
-
 DAZzle.XMLDirectory
 DAZzle.LayoutDirectory
 DAZzle.exe_path
@@ -733,7 +735,7 @@ DAZzle.exe_path
 Miscellaneous
 =============
 
-RubberStamp(n, text)
+XXX RubberStamp(n, text)
 ReferenceID(text)
 CostCenter(int)
 
@@ -742,6 +744,8 @@ CostCenter(int)
 -------------------
 Internals and Tests
 -------------------
+
+Misc imports for tests::
 
     >>> from pydicia import add_to_package, ET, Option, Batch, Package
 
@@ -876,7 +880,6 @@ Misc shipment and postprocessing::
             <FlatRate>TRUE</FlatRate>
         </Package>
     </DAZzle>
-
 
 Option inversion::
 
