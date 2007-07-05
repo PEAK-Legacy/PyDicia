@@ -28,6 +28,10 @@ type).  It also requires MS Windows (due to DAZzle only being available on
 that platform).  Actually printing any labels requires that you have an Endicia
 "premium" account.
 
+Questions, discussion, and bug reports for this software should be directed to
+the PEAK mailing list; see http://www.eby-sarna.com/mailman/listinfo/PEAK/
+for details.
+
 IMPORTANT
     Please note that PyDicia does not attempt to implement all of the US Postal
     Service's business rules for what options may be used in what combinations.
