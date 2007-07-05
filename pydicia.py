@@ -1,4 +1,4 @@
-import os, _winreg, datetime
+import os, datetime
 from decimal import Decimal
 from simplegeneric import generic
 from peak.util.decorators import struct
@@ -147,6 +147,7 @@ def convert_datetime(t):
 
 def _get_registry_string(root, path, subkey=None):
     """Return the registry value or ``None`` if not found"""
+    import _winreg
     try:
         key = _winreg.OpenKey(root, path)
         try:
@@ -159,7 +160,6 @@ def _get_registry_string(root, path, subkey=None):
         raise
 
 l1_enc = "<?xml version='1.0' encoding='iso-8859-1'?>\n"
-
 
 
 class Batch:
@@ -442,11 +442,11 @@ NonRectangularParcel = PackageType('NONRECTPARCEL')
 FlatRateEnvelope     = PackageType('FLATRATEENVELOPE')
 FlatRateBox          = PackageType('FLATRATEBOX')
 
-
-
-
-
-
+try:
+    from _winreg import HKEY_CURRENT_USER, HKEY_CLASSES_ROOT
+except ImportError: 
+    _get_registry_string = lambda *args: None
+    HKEY_CURRENT_USER = HKEY_CLASSES_ROOT = None
 
 
 class DAZzle:
@@ -472,14 +472,13 @@ class DAZzle:
     Verify = Start('DAZ')
 
     exe_path = _get_registry_string(
-        _winreg.HKEY_CLASSES_ROOT, 'lytfile\\shell\\open\\command'
+        HKEY_CLASSES_ROOT, 'lytfile\\shell\\open\\command'
     )
 
     #@staticmethod
     def get_preference(prefname):
-        import _winreg
         return _get_registry_string(
-            _winreg.HKEY_CURRENT_USER,
+            HKEY_CURRENT_USER,
             'Software\\Envelope Manager\\dazzle\\Preferences', prefname
         )
 
@@ -487,6 +486,7 @@ class DAZzle:
     LayoutDirectory = get_preference('LayoutDirectory')
 
     get_preference = staticmethod(get_preference)
+
 
 
 

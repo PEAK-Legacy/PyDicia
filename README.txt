@@ -24,9 +24,10 @@ you get the 7.0.x version, as that's required.
 
 PyDicia uses the ElementTree, simplegeneric, and DecoratorTools packages, and
 requires Python 2.4 or higher (due to use of decorators and the ``Decimal``
-type).  It also requires MS Windows (due to DAZzle only being available on
-that platform).  Actually printing any labels requires that you have an Endicia
-"premium" account.
+type).  Actually printing any labels requires that you have an Endicia
+"Premium" or "Mac" account.  (Note: I have not used the Mac client, so I don't
+know how well it works there.  See the section below on `Using PyDicia on
+Non-Windows Platforms`_ for more info.)
 
 Questions, discussion, and bug reports for this software should be directed to
 the PEAK mailing list; see http://www.eby-sarna.com/mailman/listinfo/PEAK/
@@ -462,12 +463,36 @@ XXX DAZzle.exe_path, DAZzle.get_preference(), DAZzle.LayoutDirectory
 XXX Launching for multi-batch, remote, queued, and other async processing
 
 
+Using PyDicia on Non-Windows Platforms
+======================================
+
+When used on a non-Windows platform, PyDicia cannot detect any DAZzle
+configuration information, so you must manually set ``DAZzle.exe_path`` to
+the client program, if you wish to use any of the ``run()`` methods.
+(Likewise, you must manually set ``DAZzle.LayoutDirectory`` if you want layout
+paths to be automatically adjusted.)
+
+On the Mac, the ``exe_path`` should be set to a program that takes a single
+XML filename as an argument.  The Mac ``endiciatool`` program probably will
+not work on its own, without a wrapper shell script of some kind; I'm open to
+suggestions as to how to improve this.  Note, by the way, that the Mac client
+doesn't support all of the options that the Windows client does, so remember
+that use of PyDicia is entirely at your own risk, whatever the platform!
+
+On other platforms, the main usefulness of PyDicia would be in generating XML
+for users to download (e.g. from a web application) or submitting and
+processing jobs via a Samba-mounted queue directory.  You don't need an
+``exe_path`` for this, but you will need to generate your own layout and output
+file paths using ``Option`` objects, to avoid them being mangled by PyDicia's
+platform-specific path munging.
+
+XXX explain how to do that, or make it work anyway
+
 
 Advanced Customization
 ======================
 
 XXX Using Option elements, add_to_package()
-
 
 
 -----------------
