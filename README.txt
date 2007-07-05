@@ -200,11 +200,11 @@ by your ``iter_options`` implementation can also be application objects, e.g.::
         </Package>
     </DAZzle>
 
-Also note that there is no particular significance to my choice of lists vs.
-tuples in these examples; they're more to demonstrate that you can use
-arbitrary structures, as long as they contain objects that are supported by
-either ``iter_options()`` or ``add_to_package()``.  Normally, you will simply
-use collections of either PyDicia-provided symbols, or application objects for
+Note that there is no particular significance to my choice of lists vs. tuples
+in these examples; they're more to demonstrate that you can use arbitrary
+structures, as long as they contain objects that are supported by either
+``iter_options()`` or ``add_to_package()``.  Normally, you will simply use
+collections of either PyDicia-provided symbols, or application objects for
 which you've defined an ``iter_options()`` method.
 
 You will also usually want to implement your PyDicia support in a module by
@@ -354,7 +354,7 @@ be applied to all packages::
 Receiving Status Updates
 ========================
 
-When DAZzle completes a run, it creates an output file containing status
+When DAZzle completes a batch, it creates an output file containing status
 information for each package in the batch.  If you'd like to process this
 status information for the corresponding application objects you passed in
 to ``add_package()``, you can extend the ``report_status()`` generic function
@@ -409,27 +409,29 @@ In addition, several other fields are possible::
     TransactionDateTime : datetime.datetime(2007, 7, 4, 17, 32, 21)
     PostmarkDate        : datetime.date(2007, 7, 5)
 
-The ``Status`` object should support all output fields supported by DAZzle;
-see the documentation for details.  The non-string fields shown above are the
-only ones which are postprocessed to specialized Python objects; the rest are
-kept as strings or Unicode values.  The ``ErrorCode`` field is computed by
+The ``Status`` object should support all output fields supported by DAZzle; see
+the DAZzle documentation for details.  The non-string fields shown above are
+the only ones which are postprocessed to specialized Python objects; the rest
+are kept as strings or Unicode values.  The ``ErrorCode`` field is computed by
 extracting the integer portion of any rejection code.  It is ``None`` in the
 case of a successful live print, and ``0`` in the case of a successful test
 print.  See the DAZzle XML interface documentation for a description of other
 error codes.
 
-Note that fields with ``None`` values are not included in the ``str()`` of a
-``Status`` object, for a more compact representation, which is why none of the
-statuses displayed above.
+Note that for a more compact presentation, attributes with ``None`` values are
+not included in the ``str()`` of a ``Status`` object, which is why the statuses
+displayed above show different sets of fields.  The attributes, however, always
+exist; they simply have ``None`` as their value.
 
 
 Invoking DAZzle
 ===============
 
-In the simplest case, invoking a batch's ``.run()`` method will launch a local
-copy of DAZzle on a temporary file containing the batch's XML, wait for DAZzle
-to exit, then process status updates from the output file and return DAZzle's
-return code.
+In the simplest case, invoking a batch or shipment objects ``.run()`` method
+will launch a local copy of DAZzle on a temporary file containing the batch's
+XML, wait for DAZzle to exit, then process status updates from the output file
+and return DAZzle's return code.  (Or a list of return codes, in the case of a
+``Shipment``.)
 
 If you are using this approach, you may wish to include ``~DAZzle.Prompt``
 (which keeps end-user prompts to a minimum) and ``DAZzle.AutoClose`` (so that

@@ -315,15 +315,15 @@ class Shipment:
         # only add the batch if the above operations were successful...
         self.batches.append(batch)
 
+    def run(self):
+        return [batch.run() for batch in self.batches]
+
 
 @generic
 def add_to_package(ob, package, isdefault):
     """Update `etree` to apply document info"""
     for ob in iter_options(ob):
         add_to_package(ob, package, isdefault)
-
-
-
 
 
 inverses = dict(
