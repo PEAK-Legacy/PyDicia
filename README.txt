@@ -47,6 +47,17 @@ IMPORTANT
     your application thoroughly before using this code in production.  You have
     been warned!
 
+New in 0.1a2
+  * Dropped MS Windows requirement; you can now use PyDicia to generate XML for
+    the Endicia Mac client, or to be sent via download or networked directory
+    to a Windows client.  
+
+  * Added a ``Shipment.run()`` method to allow running multiple batches in
+    sequence.
+
+  * Fixed the ``Status.ToZip4`` attribute (it was incorrectly spelled
+    ``ToZIP4``, and thus didn't work).
+   
 
 .. contents:: **Table of Contents**
 
