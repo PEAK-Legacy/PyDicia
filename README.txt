@@ -134,9 +134,10 @@ objects, as described in the next section.
 Using Your Application Objects as Package Sources
 -------------------------------------------------
 
-It also accepts any custom objects of your own design, that are registered with
-the ``pydicia.add_to_package()`` or ``pydicia.iter_options()`` generic
-functions::
+In addition to PyDicia-defined objects and sequences thereof, the
+``add_package()`` method also accepts any custom objects of your own design
+that have been registered with the ``pydicia.add_to_package()`` or
+``pydicia.iter_options()`` generic functions::
 
     >>> class Customer:
     ...     def __init__(self, **kw):
@@ -235,11 +236,11 @@ have every package set to be mailed tomorrow as media mail::
 Multi-Batch Shipments
 =====================
 
-Certain DAZzle options can only be set once per file, such as the choice of
+Certain DAZzle options can only be set once per XML file, such as the choice of
 layout file.  If you are shipping multiple packages with different label
 layouts (such as domestic vs. international mail), you need to separate these
-packages into different batches.  The ``Shipment`` class handles this
-separation for you automatically.
+packages into different batches, each of which will be in a separate XML file.
+The ``Shipment`` class handles this separation for you automatically.
 
 When you create a shipment, it initially has no batches::
 
@@ -405,6 +406,7 @@ In addition, several other fields are possible::
     Status              : 'Rejected (-3)'
     ErrorCode           : -3
     ToAddress           : []
+    ToZip4              : '1234'
     PIC                 : '123465874359'
     FinalPostage        : Decimal("4.60")
     TransactionDateTime : datetime.datetime(2007, 7, 4, 17, 32, 21)

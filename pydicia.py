@@ -253,7 +253,7 @@ class Status(object):
     """A status object"""
 
     __slots__ = """
-        Status ErrorCode ToAddress ToCity ToState ToPostalCode ToZIP4 ToCountry
+        Status ErrorCode ToAddress ToCity ToState ToPostalCode ToZip4 ToCountry
         ToDeliveryPoint ToCarrierRoute ToReturnCode PIC CustomsNumber
         FinalPostage TransactionID TransactionDateTime PostmarkDate
     """.split() + address_fields
