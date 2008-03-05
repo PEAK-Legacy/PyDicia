@@ -19,7 +19,7 @@ __all__ = [
     'WeekendDelivery', 'HolidayDelivery', 'NoPostage',
     'Postcard', 'Envelope', 'Flat', 'RectangularParcel',
     'NonRectangularParcel', 'FlatRateEnvelope', 'FlatRateBox',
-    'ToAddress', 'ReturnAddress', 'RubberStamp',
+    'FlatRateLargeBox', 'ToAddress', 'ReturnAddress', 'RubberStamp',
     # ...and many more symbols added dynamically!
 ]
 
@@ -382,6 +382,7 @@ _make_globals(
     'tag', """
     ReplyPostage BalloonRate NonMachinable OversizeRate Stealth SignatureWaiver
     NoWeekendDelivery NoHolidayDelivery ReturnToSender CustomsCertify
+    ExpressMailPremiumService
     """.split(), value='TRUE'
 )
 
@@ -403,7 +404,6 @@ HolidayDelivery = ~NoHolidayDelivery
 def NumberedOptions(n, **kw):
     n = str(n)
     return [Option(k+n, v)for k, v in kw.items()]
-
 
 
 
@@ -441,13 +441,13 @@ RectangularParcel    = PackageType('RECTPARCEL')
 NonRectangularParcel = PackageType('NONRECTPARCEL')
 FlatRateEnvelope     = PackageType('FLATRATEENVELOPE')
 FlatRateBox          = PackageType('FLATRATEBOX')
+FlatRateLargeBox     = PackageType('FLATRATELARGEBOX')
 
 try:
     from _winreg import HKEY_CURRENT_USER, HKEY_CLASSES_ROOT
 except ImportError: 
     _get_registry_string = lambda *args: None
     HKEY_CURRENT_USER = HKEY_CLASSES_ROOT = None
-
 
 class DAZzle:
     _make_symbols(

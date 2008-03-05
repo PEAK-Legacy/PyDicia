@@ -2,6 +2,21 @@
 Package Shipment and Address Verification with ``PyDicia``
 ==========================================================
 
+New in 0.1a3
+  * Added ``FlatRateLargeBox`` and ``ExpressMailPremiumService`` tags, for use
+    with DAZzle 8.0 and up.
+
+New in 0.1a2
+  * Dropped MS Windows requirement; you can now use PyDicia to generate XML for
+    the Endicia Mac client, or to be sent via download or networked directory
+    to a Windows client.  
+
+  * Added a ``Shipment.run()`` method to allow running multiple batches in
+    sequence.
+
+  * Fixed the ``Status.ToZip4`` attribute (it was incorrectly spelled
+    ``ToZIP4``, and thus didn't work).
+   
 PyDicia is a Python interface to endicia.com's postal services client, DAZzle.
 Using DAZzle's XML interface, PyDicia can be used to print shipping labels,
 envelopes, postcards and more, with or without prepaid US postage indicia
@@ -20,7 +35,7 @@ the reference documentation is sketchy, and the developer's guide lacks detail
 about some of the more advanced features.  This should improve in future
 releases, but I just want to get this milestone out to start with.  Reading the
 DAZzle XML API specification is a good idea if you want to use this; make sure
-you get the 7.0.x version, as that's required.
+you get at least the 7.0.x version, as that's required.
 
 PyDicia uses the ElementTree, simplegeneric, and DecoratorTools packages, and
 requires Python 2.4 or higher (due to use of decorators and the ``Decimal``
@@ -28,10 +43,6 @@ type).  Actually printing any labels requires that you have an Endicia
 "Premium" or "Mac" account.  (Note: I have not used the Mac client, so I don't
 know how well it works there.  See the section below on `Using PyDicia on
 Non-Windows Platforms`_ for more info.)
-
-Questions, discussion, and bug reports for this software should be directed to
-the PEAK mailing list; see http://www.eby-sarna.com/mailman/listinfo/PEAK/
-for details.
 
 IMPORTANT
     Please note that PyDicia does not attempt to implement all of the US Postal
@@ -47,17 +58,9 @@ IMPORTANT
     your application thoroughly before using this code in production.  You have
     been warned!
 
-New in 0.1a2
-  * Dropped MS Windows requirement; you can now use PyDicia to generate XML for
-    the Endicia Mac client, or to be sent via download or networked directory
-    to a Windows client.  
-
-  * Added a ``Shipment.run()`` method to allow running multiple batches in
-    sequence.
-
-  * Fixed the ``Status.ToZip4`` attribute (it was incorrectly spelled
-    ``ToZIP4``, and thus didn't work).
-   
+Questions, discussion, and bug reports for this software should be directed to
+the PEAK mailing list; see http://www.eby-sarna.com/mailman/listinfo/PEAK/
+for details.
 
 .. contents:: **Table of Contents**
 
@@ -441,7 +444,7 @@ exist; they simply have ``None`` as their value.
 Invoking DAZzle
 ===============
 
-In the simplest case, invoking a batch or shipment objects ``.run()`` method
+In the simplest case, invoking a batch or shipment object's ``.run()`` method
 will launch a local copy of DAZzle on a temporary file containing the batch's
 XML, wait for DAZzle to exit, then process status updates from the output file
 and return DAZzle's return code.  (Or a list of return codes, in the case of a
@@ -488,9 +491,9 @@ paths to be automatically adjusted.)
 On the Mac, the ``exe_path`` should be set to a program that takes a single
 XML filename as an argument.  The Mac ``endiciatool`` program probably will
 not work on its own, without a wrapper shell script of some kind; I'm open to
-suggestions as to how to improve this.  Note, by the way, that the Mac client
+suggestions as to how to improve this.  (Note, by the way, that the Mac client
 doesn't support all of the options that the Windows client does, so remember
-that use of PyDicia is entirely at your own risk, whatever the platform!
+that use of PyDicia is entirely at your own risk, whatever the platform!)
 
 On other platforms, the main usefulness of PyDicia would be in generating XML
 for users to download (e.g. from a web application) or submitting and
