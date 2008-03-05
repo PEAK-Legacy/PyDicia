@@ -29,13 +29,16 @@ its functions with your application's core types (like invoice, customer, or
 you are extending a CRM or other database that was written by somebody else.)
 
 This version of PyDicia is an alpha proof-of-concept release.  It is actually
-usable -- I've already used it to print about a dozen international shipping
-labels to almost as many countries.  However, the API is subject to change,
-the reference documentation is sketchy, and the developer's guide lacks detail
-about some of the more advanced features.  This should improve in future
-releases, but I just want to get this milestone out to start with.  Reading the
-DAZzle XML API specification is a good idea if you want to use this; make sure
-you get at least the 7.0.x version, as that's required.
+usable -- I've in fact been using it in production for over a year, shipping
+dozens of envelopes and packages a month all over the US, Canada, and Europe.
+However, the API is still potentially subject to change, the reference
+documentation is sketchy, and the developer's guide lacks detail about some of
+the more advanced features.  This should improve in future releases, but at
+least this way, you can use it now, if you need something like it.  Reading the
+`DAZzle XML API specification`_ is a good idea if you want to use this, though;
+the 8.0 version is the latest, although PyDicia also supports 7.0.x versions.
+
+.. _DAZzle XML API specification: http://fileserver.surveygizmo.com/users/4508/dazzleXMLInterfaceV8.pdf
 
 PyDicia uses the ElementTree, simplegeneric, and DecoratorTools packages, and
 requires Python 2.4 or higher (due to use of decorators and the ``Decimal``

@@ -7,7 +7,7 @@ from setuptools import setup
 
 # Metadata
 PACKAGE_NAME = "PyDicia"
-PACKAGE_VERSION = "0.1a3"
+PACKAGE_VERSION = "0.1a4"
 
 def get_description():
     # Get our long description from the documentation
