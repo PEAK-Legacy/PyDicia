@@ -20,6 +20,7 @@ __all__ = [
     'Postcard', 'Envelope', 'Flat', 'RectangularParcel',
     'NonRectangularParcel', 'FlatRateEnvelope', 'FlatRateBox',
     'FlatRateLargeBox', 'ToAddress', 'ReturnAddress', 'RubberStamp',
+    'FlatRateSmallBox', 'FlatRatePaddedEnvelope',
     # ...and many more symbols added dynamically!
 ]
 
@@ -36,7 +37,6 @@ def iter_options(ob):
 def options_for_iterable(ob):
     for ob in ob:
         yield ob
-
 
 
 class Package:
@@ -442,6 +442,12 @@ NonRectangularParcel = PackageType('NONRECTPARCEL')
 FlatRateEnvelope     = PackageType('FLATRATEENVELOPE')
 FlatRateBox          = PackageType('FLATRATEBOX')
 FlatRateLargeBox     = PackageType('FLATRATELARGEBOX')
+FlatRateSmallBox     = PackageType('FLATRATESMALLBOX')
+FlatRatePaddedEnvelope = PackageType('FLATRATEPADDEDENVELOPE')
+
+
+
+
 
 try:
     from _winreg import HKEY_CURRENT_USER, HKEY_CLASSES_ROOT
@@ -474,21 +480,15 @@ class DAZzle:
     exe_path = _get_registry_string(
         HKEY_CLASSES_ROOT, 'lytfile\\shell\\open\\command'
     )
-
     #@staticmethod
     def get_preference(prefname):
         return _get_registry_string(
             HKEY_CURRENT_USER,
             'Software\\Envelope Manager\\dazzle\\Preferences', prefname
         )
-
     XMLDirectory = get_preference('XMLDirectory')
     LayoutDirectory = get_preference('LayoutDirectory')
-
     get_preference = staticmethod(get_preference)
-
-
-
 
     @staticmethod
     def run(args=(), sync=True):
@@ -512,7 +512,8 @@ class Domestic:
     Express    = MailClass('EXPRESS')
     PresortedFirstClass = MailClass('PRESORTEDFIRST')
     PresortedStandard   = MailClass('PRESORTEDSTANDARD')
-
+    ParcelSelect = MailClass('PARCELSELECT')
+    
 class International:
     FirstClass = MailClass('INTLFIRST')
     Priority   = MailClass('INTLPRIORITY')
@@ -529,7 +530,6 @@ def DateAdvance(days):
 
 Today = DateAdvance(0)
 Tomorrow = DateAdvance(1)
-
 
 class Customs:
     _make_symbols(
